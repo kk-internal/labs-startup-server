@@ -1,0 +1,5 @@
+fastapi==0.118.0
+git+https://kodekloud-libs:glpat-yVmQQURdGSnWUnDeANiRYW86MQp1Ojg5NW4xCw.01.121i18arr@gitlab.com/kodekloud/labsv2/libs/python-kk-logger.git@v0.1.4
+git+https://kodekloud-libs:glpat-yVmQQURdGSnWUnDeANiRYW86MQp1Ojg5NW4xCw.01.121i18arr@gitlab.com/kodekloud/labsv2/libs/python-kk-request-id.git@v0.1.3
+pyinstaller==6.16.0
+uvicorn[standard]==0.37.0
