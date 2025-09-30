@@ -1,0 +1,76 @@
+name: Build and Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: alpine
+            dockerfile: alpine.Dockerfile
+          - platform: ubuntu
+            dockerfile: ubuntu.Dockerfile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and export binary
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: export-binary
+          outputs: type=local,dest=./output
+
+      - name: Rename binary
+        run: |
+          mv ./output/startup-server ./startup-server-${{ matrix.platform }}
+          chmod +x ./startup-server-${{ matrix.platform }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: startup-server-${{ matrix.platform }}
+          path: ./startup-server-${{ matrix.platform }}
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download Alpine binary
+        uses: actions/download-artifact@v4
+        with:
+          name: startup-server-alpine
+
+      - name: Download Ubuntu binary
+        uses: actions/download-artifact@v4
+        with:
+          name: startup-server-ubuntu
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            startup-server-alpine
+            startup-server-ubuntu
+          draft: false
+          prerelease: false
+          generate_release_notes: true
