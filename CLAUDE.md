@@ -4,70 +4,85 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a lightweight FastAPI server that:
+This is a lightweight HTTP server written in Go that:
 1. Receives environment variables via query parameters on the root endpoint (`/`)
 2. Writes them to a `.env` file
 3. Terminates itself after completion
 
-The server is compiled into standalone binaries for Alpine and Ubuntu using PyInstaller, eliminating runtime Python dependencies.
+The server is compiled into a truly static binary with zero runtime dependencies, working on any Linux distribution and architecture.
 
 ## Build Commands
 
-### Build Alpine Binary
+### Build Binary for Export (CI/CD)
 ```bash
-docker buildx build -f alpine.Dockerfile \
+# AMD64
+docker buildx build -f Dockerfile \
   --platform linux/amd64 \
+  --output type=local,dest=. \
+  --target export-binary \
+  ./
+
+# ARM64
+docker buildx build -f Dockerfile \
+  --platform linux/arm64 \
   --output type=local,dest=. \
   --target export-binary \
   ./
 ```
 
-### Build Ubuntu Binary
+### Build and Run with Docker
 ```bash
-docker buildx build -f ubuntu.Dockerfile \
-  --platform linux/amd64 \
-  --output type=local,dest=. \
-  --target export-binary \
+# Build runtime image
+docker buildx build -f Dockerfile \
+  --platform linux/arm64 \
+  --target runtime \
+  --load \
+  -t startup-server:test \
   ./
+
+# Run
+docker run -p 8081:8081 startup-server:test
 ```
 
 ### Local Development
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Run directly
+go run main.go
 
-# Run the server locally
-python startup-server.py
+# Build locally
+go build -o startup-server main.go
+./startup-server
 ```
 
 ## Architecture
 
-**Core Application** (`startup-server.py`):
-- FastAPI server listening on port 8081
-- `/` endpoint: Accepts query params, writes to `.env`, then kills server via background task
+**Core Application** (`main.go`):
+- Standard library HTTP server listening on port 8081
+- `/` endpoint: Accepts query params, writes to `.env`, logs with request ID, then exits via goroutine
 - `/heart_beat` endpoint: Health check returning "success"
-- Uses KodeKloud custom libraries: `kk_logger` (logging) and `kk_request_id` (request ID middleware)
+- Structured JSON logging with UUID-based request IDs
+- Request ID middleware adds `X-Request-ID` header to all responses
 
 **Build Process**:
-- Multi-stage Docker builds compile Python app into standalone ELF binary using PyInstaller
-- Alpine build uses `alpine:3.19` base with musl-libc
-- Ubuntu build uses `python:3.11-slim` base with glibc
-- Uses `uv` package manager for faster dependency installation
-- Final binary exported via `scratch` stage
+- Multi-stage Docker build using `golang:1.21-alpine`
+- `CGO_ENABLED=0` creates fully static binary with no libc dependencies
+- Binary works on any Linux distro (Alpine, Ubuntu, Debian, CentOS, etc.)
+- `export-binary` stage outputs just the binary for CI/CD
+- `runtime` stage uses minimal Alpine base for testing
 
 **CI/CD** (`.github/workflows/build-release.yml`):
 - Triggered on version tags (`v*`) or manual dispatch
-- Builds both Alpine and Ubuntu binaries in parallel using matrix strategy
+- Builds binaries for both AMD64 and ARM64 platforms
 - Creates GitHub releases with both binaries attached
 
 ## Dependencies
 
-External libraries in `requirements.txt`:
-- Private GitLab packages: `python-kk-logger` (v0.1.4) and `python-kk-request-id` (v0.1.3) - require GitLab token
-- FastAPI, Uvicorn, PyInstaller
+Only one external Go dependency:
+- `github.com/google/uuid` v1.6.0 - for generating request IDs
 
 ## Important Notes
 
-- The server intentionally terminates after processing the first request to `/` (via `os._exit(0)`)
-- Authentication token for KodeKloud libraries is hardcoded in `requirements.txt`
-- The compiled binary is statically linked and has no external Python runtime dependencies
+- The binary is **truly static** - no GLIBC, musl, or any system library dependencies
+- Binary size is approximately 6MB
+- Server intentionally terminates after processing the first request to `/`
+- Shutdown happens in a goroutine with 100ms delay to allow response to be sent

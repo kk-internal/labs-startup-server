@@ -1,26 +1,28 @@
 # Startup Server
 
-A lightweight FastAPI server that receives environment variables via query parameters and writes them to a `.env` file before terminating.
+A lightweight HTTP server written in Go that receives environment variables via query parameters and writes them to a `.env` file before terminating.
 
 ## Building Binaries
 
 ### Export Binary Only (for CI/CD)
 
 ```shell
-# Alpine
-docker buildx build -f alpine.Dockerfile \
+# Build for AMD64 (Intel/x86)
+docker buildx build -f Dockerfile \
   --platform linux/amd64 \
   --output type=local,dest=. \
   --target export-binary \
   ./
 
-# Ubuntu
-docker buildx build -f ubuntu.Dockerfile \
-  --platform linux/amd64 \
+# Build for ARM64 (Apple Silicon, ARM servers)
+docker buildx build -f Dockerfile \
+  --platform linux/arm64 \
   --output type=local,dest=. \
   --target export-binary \
   ./
 ```
+
+The exported binary is fully static and works on **any** Linux distribution.
 
 ## Running and Testing
 
@@ -28,7 +30,7 @@ docker buildx build -f ubuntu.Dockerfile \
 
 ```shell
 # Build the runtime image for ARM64 (Apple Silicon)
-docker buildx build -f ubuntu.Dockerfile \
+docker buildx build -f Dockerfile \
   --platform linux/arm64 \
   --target runtime \
   --load \
@@ -36,7 +38,7 @@ docker buildx build -f ubuntu.Dockerfile \
   ./
 
 # Build the runtime image for AMD64 (Intel/x86)
-docker buildx build -f ubuntu.Dockerfile \
+docker buildx build -f Dockerfile \
   --platform linux/amd64 \
   --target runtime \
   --load \
@@ -55,13 +57,24 @@ curl "http://localhost:8081/heart_beat"
 
 ```shell
 # Install dependencies
-pip install -r requirements.txt
+go mod download
 
 # Run the server
-python startup-server.py
+go run main.go
+
+# Or build locally
+go build -o startup-server main.go
+./startup-server
 ```
 
 ## Endpoints
 
 - `GET /` - Accepts query parameters, writes them to `.env`, then terminates the server
 - `GET /heart_beat` - Health check endpoint
+
+## Features
+
+- **Truly static binary** - No runtime dependencies, works on any Linux
+- **Structured JSON logging** with request IDs
+- **Cross-platform** - Builds for AMD64 and ARM64
+- **Lightweight** - ~6MB binary size
