@@ -53,7 +53,7 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func startupHandler(server *http.Server) http.HandlerFunc {
+func injectHandler(server *http.Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		requestID := r.Context().Value(requestIDKey).(string)
 		logger := &Logger{requestID: requestID}
@@ -92,7 +92,6 @@ func startupHandler(server *http.Server) http.HandlerFunc {
 
 		// Shutdown server in background
 		go func() {
-			time.Sleep(100 * time.Millisecond)
 			logger.Info("Killing startup server", nil)
 			if err := server.Shutdown(context.Background()); err != nil {
 				log.Printf("Server shutdown error: %v", err)
@@ -125,8 +124,8 @@ func main() {
 		Handler: requestIDMiddleware(mux),
 	}
 
-	mux.HandleFunc("/", startupHandler(server))
-	mux.HandleFunc("/heart_beat", heartBeatHandler)
+	mux.HandleFunc("GET /startup/inject", injectHandler(server))
+	mux.HandleFunc("GET /startup/heart_beat", heartBeatHandler)
 
 	log.Printf("Starting server on :%s", port)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
