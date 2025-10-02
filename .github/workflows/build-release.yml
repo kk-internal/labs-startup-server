@@ -1,4 +1,4 @@
-name: Build and Release Binaries
+name: Build and Release Binary
 
 on:
   push:
@@ -11,15 +11,8 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.platform }} Binary
+    name: Build Binary
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - platform: alpine
-            dockerfile: alpine.Dockerfile
-          - platform: ubuntu
-            dockerfile: ubuntu.Dockerfile
 
     steps:
       - name: Checkout code
@@ -32,45 +25,19 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: Dockerfile
+          platforms: linux/amd64
           target: export-binary
           outputs: type=local,dest=./output
 
-      - name: Rename binary
-        run: |
-          mv ./output/startup-server ./startup-server-${{ matrix.platform }}
-          chmod +x ./startup-server-${{ matrix.platform }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: startup-server-${{ matrix.platform }}
-          path: ./startup-server-${{ matrix.platform }}
-          retention-days: 1
-
-  release:
-    name: Create Release
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-
-    steps:
-      - name: Download Alpine binary
-        uses: actions/download-artifact@v4
-        with:
-          name: startup-server-alpine
-
-      - name: Download Ubuntu binary
-        uses: actions/download-artifact@v4
-        with:
-          name: startup-server-ubuntu
+      - name: Prepare binary
+        run: chmod +x ./output/startup-server
 
       - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            startup-server-alpine
-            startup-server-ubuntu
+          files: ./output/startup-server
           draft: false
           prerelease: false
           generate_release_notes: true
