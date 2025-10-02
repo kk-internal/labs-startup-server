@@ -103,22 +103,32 @@ func startupHandler(server *http.Server) http.HandlerFunc {
 }
 
 func heartBeatHandler(w http.ResponseWriter, r *http.Request) {
+	requestID := r.Context().Value(requestIDKey).(string)
+	logger := &Logger{requestID: requestID}
+
+	logger.Info("Heart beat check", nil)
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("success"))
 }
 
 func main() {
+	port := os.Getenv("STARTUP_SERVER_PORT")
+	if port == "" {
+		port = "80"
+	}
+
 	mux := http.NewServeMux()
 
 	server := &http.Server{
-		Addr:    ":8081",
+		Addr:    ":" + port,
 		Handler: requestIDMiddleware(mux),
 	}
 
 	mux.HandleFunc("/", startupHandler(server))
 	mux.HandleFunc("/heart_beat", heartBeatHandler)
 
-	log.Printf("Starting server on :8081")
+	log.Printf("Starting server on :%s", port)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server error: %v", err)
 	}
